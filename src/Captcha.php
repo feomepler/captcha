@@ -1,6 +1,6 @@
 <?php
 
-namespace Mews\Captcha;
+namespace Feomepler\Captcha;
 
 /**
  * Laravel 5 Captcha package
@@ -20,7 +20,7 @@ use Illuminate\Hashing\BcryptHasher as Hasher;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
-use Illuminate\Session\Store as Session;
+use Cache;
 
 /**
  * Class Captcha
@@ -43,11 +43,6 @@ class Captcha
      * @var ImageManager
      */
     protected $imageManager;
-
-    /**
-     * @var Session
-     */
-    protected $session;
 
     /**
      * @var Hasher
@@ -87,7 +82,7 @@ class Captcha
     /**
      * @var int
      */
-    protected $length = 5;
+    protected $length = 4;
 
     /**
      * @var int
@@ -165,7 +160,6 @@ class Captcha
      * @param Filesystem $files
      * @param Repository $config
      * @param ImageManager $imageManager
-     * @param Session $session
      * @param Hasher $hasher
      * @param Str $str
      * @throws Exception
@@ -175,7 +169,6 @@ class Captcha
         Filesystem $files,
         Repository $config,
         ImageManager $imageManager,
-        Session $session,
         Hasher $hasher,
         Str $str
     )
@@ -183,7 +176,6 @@ class Captcha
         $this->files = $files;
         $this->config = $config;
         $this->imageManager = $imageManager;
-        $this->session = $session;
         $this->hasher = $hasher;
         $this->str = $str;
     }
@@ -194,10 +186,8 @@ class Captcha
      */
     protected function configure($config)
     {
-        if ($this->config->has('captcha.' . $config))
-        {
-            foreach($this->config->get('captcha.' . $config) as $key => $val)
-            {
+        if ($this->config->has('captcha.' . $config)) {
+            foreach ($this->config->get('captcha.' . $config) as $key => $val) {
                 $this->{$key} = $val;
             }
         }
@@ -225,21 +215,17 @@ class Captcha
             $this->bgColor
         );
 
-        if ($this->bgImage)
-        {
+        if ($this->bgImage) {
             $this->image = $this->imageManager->make($this->background())->resize(
                 $this->width,
                 $this->height
             );
             $this->canvas->insert($this->image);
-        }
-        else
-        {
+        } else {
             $this->image = $this->canvas;
         }
 
-        if ($this->contrast != 0)
-        {
+        if ($this->contrast != 0) {
             $this->image->contrast($this->contrast);
         }
 
@@ -247,16 +233,13 @@ class Captcha
 
         $this->lines();
 
-        if ($this->sharpen)
-        {
+        if ($this->sharpen) {
             $this->image->sharpen($this->sharpen);
         }
-        if ($this->invert)
-        {
+        if ($this->invert) {
             $this->image->invert($this->invert);
         }
-        if ($this->blur)
-        {
+        if ($this->blur) {
             $this->image->blur($this->blur);
         }
 
@@ -283,14 +266,14 @@ class Captcha
         $characters = str_split($this->characters);
 
         $bag = '';
-        for($i = 0; $i < $this->length; $i++)
-        {
+        for ($i = 0; $i < $this->length; $i++) {
             $bag .= $characters[rand(0, count($characters) - 1)];
         }
 
-        $this->session->put('captcha', [
-            'sensitive' => $this->sensitive,
-            'key'       => $this->hasher->make($this->sensitive ? $bag : $this->str->lower($bag))
+        $token = $this->hasher->make(time());
+
+        $this->session->put('captcha' =, [
+            'key' => $this->hasher->make($this->str->lower($bag))
         ]);
 
         return $bag;
@@ -304,11 +287,10 @@ class Captcha
         $marginTop = $this->image->height() / $this->length;
 
         $i = 0;
-        foreach(str_split($this->text) as $char)
-        {
+        foreach (str_split($this->text) as $char) {
             $marginLeft = ($i * $this->image->width() / $this->length);
 
-            $this->image->text($char, $marginLeft, $marginTop, function($font) {
+            $this->image->text($char, $marginLeft, $marginTop, function ($font) {
                 $font->file($this->font());
                 $font->size($this->fontSize());
                 $font->color($this->fontColor());
@@ -348,12 +330,9 @@ class Captcha
      */
     protected function fontColor()
     {
-        if ( ! empty($this->fontColors))
-        {
+        if (!empty($this->fontColors)) {
             $color = $this->fontColors[rand(0, count($this->fontColors) - 1)];
-        }
-        else
-        {
+        } else {
             $color = [rand(0, 255), rand(0, 255), rand(0, 255)];
         }
 
@@ -377,8 +356,7 @@ class Captcha
      */
     protected function lines()
     {
-        for($i = 0; $i <= $this->lines; $i++)
-        {
+        for ($i = 0; $i <= $this->lines; $i++) {
             $this->image->line(
                 rand(0, $this->image->width()) + $i * rand(0, $this->image->height()),
                 rand(0, $this->image->height()),
@@ -400,15 +378,13 @@ class Captcha
      */
     public function check($value)
     {
-        if ( ! $this->session->has('captcha'))
-        {
+        if (!$this->session->has('captcha')) {
             return false;
         }
 
         $key = $this->session->get('captcha.key');
 
-        if ( ! $this->session->get('captcha.sensitive'))
-        {
+        if (!$this->session->get('captcha.sensitive')) {
             $value = $this->str->lower($value);
         }
 
